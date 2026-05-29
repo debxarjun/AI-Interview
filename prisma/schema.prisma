@@ -1,0 +1,75 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String      @id @default(cuid())
+  clerkId       String      @unique
+  email         String?
+  name          String?
+  xp            Int         @default(0)
+  level         Int         @default(1)
+  streak        Int         @default(0)
+  lastActiveAt  DateTime?
+  badges        String[]    @default([])
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  profile       Profile?
+  interviews    Interview[]
+}
+
+model Profile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  jobRole     String
+  experience  String
+  skills      String[]
+  resumeUrl   String?
+  resumeText  String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Interview {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title           String
+  companyStyle    String?
+  mode            String   @default("standard")
+  jobRole         String
+  experience      String
+  status          String   @default("in_progress")
+  questions       Json
+  answers         Json     @default("[]")
+  currentIndex    Int      @default(0)
+  durationSeconds Int      @default(0)
+  overallScore    Int?
+  communication   Int?
+  technical       Int?
+  confidence      Int?
+  problemSolving  Int?
+  evaluation      Json?
+  xpEarned        Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ResumeAnalysis {
+  id          String   @id @default(cuid())
+  userId      String
+  resumeUrl   String?
+  atsScore    Int
+  missingSkills String[]
+  improvements String[] @default([])
+  keywords    String[] @default([])
+  analysis    Json?
+  createdAt   DateTime @default(now())
+}
