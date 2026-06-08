@@ -12,11 +12,14 @@ import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { JOB_ROLES } from "@/types";
 import type { ResumeAnalysisResult } from "@/types";
+import { extractTextFromFile } from "@/lib/resume-file";
 
 export default function ResumePage() {
   const [targetRole, setTargetRole] = useState<string>(JOB_ROLES[0]);
   const [resumeText, setResumeText] = useState("");
   const [loading, setLoading] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [fileName, setFileName] = useState<string | null>(null);
   const [result, setResult] = useState<ResumeAnalysisResult | null>(null);
 
   const analyze = async () => {
@@ -42,11 +45,21 @@ export default function ResumePage() {
   };
 
   const handleFile = async (file: File) => {
-    if (file.type === "text/plain") {
-      const text = await file.text();
-      setResumeText(text);
-    } else {
-      toast.info("Paste resume text below for best results, or use a .txt file");
+    setExtracting(true);
+    setFileName(file.name);
+    try {
+      const text = await extractTextFromFile(file);
+      setResumeText(text.slice(0, 12000));
+      toast.success(
+        file.name.toLowerCase().endsWith(".pdf")
+          ? "PDF uploaded — text extracted successfully"
+          : "Resume uploaded successfully"
+      );
+    } catch (err) {
+      setFileName(null);
+      toast.error(err instanceof Error ? err.message : "Failed to read file");
+    } finally {
+      setExtracting(false);
     }
   };
 
@@ -80,16 +93,27 @@ export default function ResumePage() {
             </Select>
           </div>
 
-          <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-white/20 p-8 hover:border-violet-500/50">
-            <Upload className="mb-2 h-8 w-8 text-muted-foreground" />
-            <span className="text-sm">Upload PDF or TXT</span>
+          <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 p-8 hover:border-violet-500/50 dark:border-zinc-600">
+            {extracting ? (
+              <Loader2 className="mb-2 h-8 w-8 animate-spin text-violet-500" />
+            ) : (
+              <Upload className="mb-2 h-8 w-8 text-zinc-500" />
+            )}
+            <span className="text-sm text-zinc-900 dark:text-zinc-50">
+              {extracting
+                ? "Extracting text from PDF..."
+                : fileName ?? "Upload PDF or TXT"}
+            </span>
+            <span className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">Max 5MB</span>
             <input
               type="file"
-              accept=".pdf,.txt"
+              accept=".pdf,.txt,application/pdf,text/plain"
               className="hidden"
+              disabled={extracting}
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 if (f) handleFile(f);
+                e.target.value = "";
               }}
             />
           </label>

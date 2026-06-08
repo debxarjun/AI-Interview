@@ -17,12 +17,12 @@ import { Badge } from "@/components/ui/badge";
 import { useInterviewStore } from "@/hooks/use-interview-store";
 import { JOB_ROLES, EXPERIENCE_LEVELS, COMPANY_STYLES } from "@/types";
 import { cn } from "@/lib/utils";
+import { extractTextFromFile } from "@/lib/resume-file";
 
 const schema = z.object({
   name: z.string().min(2, "Name is required"),
   jobRole: z.string().min(1, "Select a role"),
   experience: z.string().min(1, "Select experience level"),
-  skills: z.string().min(2, "Add at least one skill"),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -37,6 +37,7 @@ export default function SetupPage() {
   const [companyStyle, setCompanyStyle] = useState("standard");
   const [mode, setMode] = useState("standard");
   const [loading, setLoading] = useState(false);
+  const [extractingResume, setExtractingResume] = useState(false);
 
   const {
     register,
@@ -65,18 +66,32 @@ export default function SetupPage() {
   };
 
   const handleResume = async (file: File) => {
+    setExtractingResume(true);
     setResumeFile(file);
-    if (file.type === "application/pdf") {
-      toast.info("PDF uploaded. Text will be extracted during interview generation.");
-    } else {
-      const text = await file.text();
+    try {
+      const text = await extractTextFromFile(file);
       setResumeText(text.slice(0, 8000));
+      toast.success(
+        file.name.toLowerCase().endsWith(".pdf")
+          ? "PDF uploaded — text extracted successfully"
+          : "Resume uploaded successfully"
+      );
+    } catch (err) {
+      setResumeFile(null);
+      toast.error(err instanceof Error ? err.message : "Failed to read file");
+    } finally {
+      setExtractingResume(false);
     }
   };
 
   const onSubmit = async (data: FormData) => {
     if (skillTags.length === 0) {
-      toast.error("Add at least one skill");
+      toast.error("Add at least one skill — type a skill and click Add");
+      return;
+    }
+
+    if (extractingResume) {
+      toast.error("Please wait for resume extraction to finish");
       return;
     }
 
@@ -103,9 +118,10 @@ export default function SetupPage() {
         }),
       });
 
-      if (!res.ok) throw new Error("Failed to generate interview");
-
       const interview = await res.json();
+      if (!res.ok) {
+        throw new Error(interview.error ?? "Failed to generate interview");
+      }
       useInterviewStore.getState().setInterview({
         id: interview.id,
         questions: interview.questions,
@@ -119,8 +135,10 @@ export default function SetupPage() {
         JSON.stringify({ questions: interview.questions, companyStyle, mode })
       );
       router.push(`/interview/${interview.id}`);
-    } catch {
-      toast.error("Could not start interview. Please try again.");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Could not start interview. Please try again."
+      );
     } finally {
       setLoading(false);
     }
@@ -195,9 +213,10 @@ export default function SetupPage() {
                     Add
                   </Button>
                 </div>
-                <input type="hidden" {...register("skills")} />
-                {errors.skills && (
-                  <p className="mt-1 text-sm text-red-500">{errors.skills.message}</p>
+                {skillTags.length === 0 && (
+                  <p className="mt-1 text-sm text-zinc-500">
+                    Type a skill above and click Add
+                  </p>
                 )}
                 <div className="mt-3 flex flex-wrap gap-2">
                   {skillTags.map((skill) => (
@@ -219,18 +238,28 @@ export default function SetupPage() {
                     resumeFile && "border-violet-500/50 bg-violet-500/5"
                   )}
                 >
-                  <Upload className="mb-2 h-8 w-8 text-muted-foreground" />
+                  {extractingResume ? (
+                    <Loader2 className="mb-2 h-8 w-8 animate-spin text-violet-500" />
+                  ) : (
+                    <Upload className="mb-2 h-8 w-8 text-muted-foreground" />
+                  )}
                   <span className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
-                    {resumeFile ? resumeFile.name : "Click to upload PDF resume"}
+                    {extractingResume
+                      ? "Extracting text from PDF..."
+                      : resumeFile
+                        ? resumeFile.name
+                        : "Click to upload PDF or TXT resume"}
                   </span>
                   <span className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">Max 5MB</span>
                   <input
                     type="file"
-                    accept=".pdf,.txt"
+                    accept=".pdf,.txt,application/pdf,text/plain"
                     className="hidden"
+                    disabled={extractingResume}
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (file) handleResume(file);
+                      e.target.value = "";
                     }}
                   />
                 </label>
@@ -286,7 +315,12 @@ export default function SetupPage() {
             </CardContent>
           </Card>
 
-          <Button type="submit" size="lg" className="w-full" disabled={loading}>
+          <Button
+            type="submit"
+            size="lg"
+            className="w-full"
+            disabled={loading || extractingResume || skillTags.length === 0}
+          >
             {loading ? (
               <>
                 <Loader2 className="animate-spin" />

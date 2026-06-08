@@ -1,9 +1,21 @@
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 
+export function isClerkConfigured(): boolean {
+  return Boolean(
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY
+  );
+}
+
 export async function getAuthUserId(): Promise<string | null> {
-  const { userId } = await auth();
-  return userId;
+  if (!isClerkConfigured()) return null;
+
+  try {
+    const { userId } = await auth();
+    return userId;
+  } catch {
+    return null;
+  }
 }
 
 export async function getOrCreateUser() {

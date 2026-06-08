@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { v4 as uuidv4 } from "uuid";
 import { getOrCreateUser } from "@/lib/db-user";
 import {
   generateInterviewQuestions,
@@ -30,21 +29,26 @@ export async function POST(req: Request) {
     const userId = user?.id ?? "anonymous";
 
     let questions;
-    if (hasOpenAI()) {
-      questions = await generateInterviewQuestions({
-        name,
-        jobRole,
-        experience,
-        skills,
-        resumeText,
-        companyStyle: companyStyle !== "standard" ? companyStyle : undefined,
-        mode: mode === "coding" ? "coding" : undefined,
-      });
-    } else {
+    try {
+      if (hasOpenAI()) {
+        questions = await generateInterviewQuestions({
+          name,
+          jobRole,
+          experience,
+          skills,
+          resumeText,
+          companyStyle: companyStyle !== "standard" ? companyStyle : undefined,
+          mode: mode === "coding" ? "coding" : undefined,
+        });
+      } else {
+        questions = getMockQuestions(jobRole, skills);
+      }
+    } catch (aiError) {
+      console.warn("AI question generation failed, using mock questions:", aiError);
       questions = getMockQuestions(jobRole, skills);
     }
 
-    const id = uuidv4();
+    const id = crypto.randomUUID();
     const title = `${jobRole} Interview`;
 
     const interviewData = {
