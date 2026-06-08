@@ -42,7 +42,6 @@ export default function SetupPage() {
   const {
     register,
     handleSubmit,
-    setValue,
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -52,17 +51,13 @@ export default function SetupPage() {
   const addSkill = () => {
     const skill = skillInput.trim();
     if (skill && !skillTags.includes(skill) && skillTags.length < 15) {
-      const updated = [...skillTags, skill];
-      setSkillTags(updated);
-      setValue("skills", updated.join(", "));
+      setSkillTags([...skillTags, skill]);
       setSkillInput("");
     }
   };
 
   const removeSkill = (skill: string) => {
-    const updated = skillTags.filter((s) => s !== skill);
-    setSkillTags(updated);
-    setValue("skills", updated.join(", "));
+    setSkillTags(skillTags.filter((s) => s !== skill));
   };
 
   const handleResume = async (file: File) => {
